@@ -12,6 +12,8 @@
 }
 
 {$SITE_ADDRESS} {
+	tls /etc/caddy/certs/certificate.crt /etc/caddy/certs/certificate.key
+
 	encode zstd gzip
 
 	# форма весит несколько килобайт — большие запросы не принимаем

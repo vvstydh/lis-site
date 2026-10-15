@@ -45,6 +45,7 @@ services:
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./static:/srv/static:ro
+      - ./certs:/etc/caddy/certs:ro
       - caddy-data:/data            # сертификаты
       - caddy-config:/config
     networks: [web]
