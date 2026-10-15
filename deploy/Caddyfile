@@ -1,0 +1,53 @@
+# Обратный прокси перед сайтом: HTTPS, статика, таймауты.
+# SITE_ADDRESS берётся из .env: домен (example.ru) — с автоматическим HTTPS, «:80» — просто http для проверки.
+{
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 10s
+			write 30s
+			idle 60s
+		}
+	}
+}
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# форма весит несколько килобайт — большие запросы не принимаем
+	request_body {
+		max_size 64KB
+	}
+
+	header -Server
+
+	handle_path /static/* {
+		root * /srv/static
+		file_server
+		header Cache-Control "public, max-age=604800"
+		header X-Content-Type-Options nosniff
+	}
+
+	# значок нужен и на странице «сайт недоступен», поэтому отдаём его сами
+	handle /favicon.ico {
+		root * /srv/static
+		file_server
+	}
+
+	handle {
+		reverse_proxy app:8000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# сайт не отвечает (контейнер упал или перезапускается) — показываем свою страницу
+	handle_errors 502 503 504 {
+		rewrite * /errors/unavailable.html
+		root * /srv/static
+		header Cache-Control "no-store"
+		header Retry-After "30"
+		file_server {
+			status 503
+		}
+	}
+}

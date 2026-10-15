@@ -1,0 +1,65 @@
+# Запуск: docker compose up -d --build
+# Настройки — в файле .env рядом (шаблон: .env.example)
+
+services:
+  app:
+    build: .
+    image: lis-site:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_PATH: /app/data/registrations.db
+      # X-Real-IP принимаем только из внутренних сетей Docker: снаружи сайт не опубликован,
+      # до него может достучаться лишь Caddy
+      TRUSTED_PROXIES: 172.16.0.0/12,10.0.0.0/8,192.168.0.0/16
+    volumes:
+      - lis-data:/app/data          # база участников живёт здесь и переживает пересборку
+      - ./logs:/app/logs            # access.log и app.log — прямо в папке проекта на сервере
+    networks: [web]
+    # сайт наружу не публикуется — только через Caddy
+    expose: ["8000"]
+    # песочница
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 300m
+    pids_limit: 100
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      # домен сайта; Caddy сам получит HTTPS-сертификат Let's Encrypt
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./static:/srv/static:ro
+      - caddy-data:/data            # сертификаты
+      - caddy-config:/config
+    networks: [web]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 200m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+networks:
+  web:
+
+volumes:
+  lis-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,43 @@
+[Unit]
+Description=Dolgozhdanny Trash registration site
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/trash-forest
+EnvironmentFile=/opt/trash-forest/.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+# один процесс + потоки: SQLite и счётчики лимитов живут в одном процессе
+ExecStart=/opt/trash-forest/.venv/bin/gunicorn -w 1 --threads 8 -b 127.0.0.1:8000 \
+    --timeout 30 --graceful-timeout 10 \
+    --limit-request-line 4094 --limit-request-fields 50 --limit-request-field_size 8190 \
+    app:app
+Restart=always
+RestartSec=2
+
+# песочница: процесс может писать только в папку с базой
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/trash-forest/data /opt/trash-forest/logs
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

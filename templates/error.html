@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} — Долгожданный треш!{% endblock %}
+{% block body_class %}done{% endblock %}
+{% block body %}
+<div class="page">
+  <section class="success errorpage">
+    <img class="deco done-scream" src="{{ url_for('static', filename='img/scream.webp') }}" alt="" aria-hidden="true">
+    <img class="deco done-hand" src="{{ url_for('static', filename='img/hand.webp') }}" alt="" aria-hidden="true">
+    <img class="deco err-scrap" src="{{ url_for('static', filename='img/scrap02.webp') }}" alt="" aria-hidden="true">
+
+    <div class="success-inner">
+      <p class="kicker">{{ kicker }}</p>
+      <h1 class="glow err-code">{{ code }}</h1>
+      <p class="note">{{ message }}</p>
+      <a class="cta" href="{{ url_for('index') }}">На главную</a>
+    </div>
+  </section>
+</div>
+{% endblock %}

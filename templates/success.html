@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Ты уже здесь — Долгожданный треш!{% endblock %}
+{% block body_class %}done{% endblock %}
+{% block body %}
+<div class="page">
+  <section class="success">
+    <img class="deco done-scream" src="{{ url_for('static', filename='img/scream.webp') }}" alt="" aria-hidden="true">
+    <img class="deco done-myers" src="{{ url_for('static', filename='img/myers.webp') }}" alt="" aria-hidden="true">
+    <img class="deco done-hand" src="{{ url_for('static', filename='img/hand.webp') }}" alt="" aria-hidden="true">
+
+    <div class="success-inner">
+      <img class="uzhe" src="{{ url_for('static', filename='img/scrap11.webp') }}" alt="Ты уже здесь">
+      <p class="kicker">Участник, ты в списке</p>
+      <h1 class="glow">Записали!</h1>
+      <img class="date" src="{{ url_for('static', filename='img/date.webp') }}" alt="1 ноября | УЛК">
+      <ul class="schedule">
+        {% for time, what in event.schedule %}
+        <li><b>{{ time }}</b><span>{{ what }}</span></li>
+        {% endfor %}
+      </ul>
+      <p class="note">Сумеречный лес ждёт тебя. Возьми студенческий и друзей.</p>
+      <a class="cta" href="{{ url_for('index') }}">На главную</a>
+    </div>
+  </section>
+</div>
+{% endblock %}

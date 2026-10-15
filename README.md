@@ -45,7 +45,7 @@ ADMIN_PASSWORD=test VIEWER_PASSWORD=look .venv/bin/python app.py   # http://loca
 python3 -c "import secrets; print('SECRET_KEY=' + secrets.token_hex(32)); print('ADMIN_PASSWORD=' + secrets.token_urlsafe(18)); print('VIEWER_PASSWORD=' + secrets.token_urlsafe(18))"
 ```
 
-Подозрительная активность пишется в журнал: `sudo journalctl -u trash-forest | grep WARNING`.
+Подозрительная активность пишется в `logs/app.log` (см. раздел «Логи»).
 
 ## Развёртывание в Docker (рекомендуется)
 
@@ -69,6 +69,7 @@ cp .env.example .env
 python3 -c "import secrets; print('SECRET_KEY=' + secrets.token_hex(32)); print('ADMIN_PASSWORD=' + secrets.token_urlsafe(18)); print('VIEWER_PASSWORD=' + secrets.token_urlsafe(18))"
 nano .env        # SITE_ADDRESS=ваш-домен.ru, вставить значения выше, COOKIE_SECURE=1
 chmod 600 .env
+mkdir -p logs && sudo chown 10001:10001 logs   # папка для логов, пишет в неё пользователь контейнера
 
 sudo docker compose up -d --build
 ```
@@ -77,12 +78,32 @@ sudo docker compose up -d --build
 
 > Docker сам открывает порты 80/443 в обход ufw — это нормально, наружу смотрят только они; сайт (порт 8000) доступен лишь Caddy внутри Docker-сети.
 
-Полезные команды (из папки проекта):
+### Логи
+
+Сайт пишет логи в папку `logs/` рядом с проектом (файлы ротируются: по 5 МБ, хранится 5 штук):
+
+- `logs/access.log` — каждый запрос одной строкой: время, IP посетителя, метод и адрес, статус, размер, время обработки, браузер;
+- `logs/app.log` — входы в админку, неверные пароли, срабатывание лимитов и ловушек для ботов.
+
+```bash
+tail -f logs/access.log                 # смотреть запросы в реальном времени
+grep WARNING logs/app.log               # подозрительная активность
+grep '"POST /register" 302' logs/access.log | wc -l   # сколько успешных заявок
+```
+
+Данные из формы и пароли в логи не попадают.
+
+### Если сайт упал
+
+Caddy показывает посетителям страницу «Лес временно закрыт» (`static/errors/unavailable.html`), она сама обновляется каждые 30 секунд. Контейнер с сайтом Docker перезапускает автоматически. Если не поднимается — смотрите `sudo docker compose logs app`.
+
+### Полезные команды
+
+Из папки проекта:
 
 ```bash
 sudo docker compose ps                          # статус (app должен быть healthy)
-sudo docker compose logs -f app                 # логи сайта
-sudo docker compose logs app | grep WARNING     # подозрительная активность
+sudo docker compose logs -f app                 # вывод контейнера (ошибки запуска и т.п.)
 sudo docker compose up -d --build              # обновить сайт (после загрузки новых файлов)
 sudo docker compose restart app                 # перезапустить после правки .env
 
@@ -126,7 +147,7 @@ cp .env.example .env && nano .env          # вставить значения �
 
 # код принадлежит root и только читается; писать сайт может лишь в data/
 sudo chown -R root:root /opt/trash-forest
-sudo mkdir -p data && sudo chown www-data:www-data data && sudo chmod 700 data
+sudo mkdir -p data logs && sudo chown www-data:www-data data logs && sudo chmod 700 data
 sudo chown root:www-data .env && sudo chmod 640 .env
 
 sudo cp deploy/trash-forest.service /etc/systemd/system/

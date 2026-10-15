@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Эту страницу отдаёт сам прокси (Caddy/nginx), когда сайт не отвечает. Через 30 с — новая попытка. -->
+  <meta http-equiv="refresh" content="30">
+  <meta name="robots" content="noindex">
+  <title>Сайт временно недоступен — Долгожданный треш!</title>
+  <meta name="theme-color" content="#1e1b1b">
+  <link rel="icon" href="/static/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/static/favicon-32.png" sizes="32x32">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="done">
+  <div class="page">
+    <section class="success errorpage">
+      <img class="deco done-scream" src="/static/img/scream.webp" alt="" aria-hidden="true">
+      <img class="deco done-myers" src="/static/img/myers.webp" alt="" aria-hidden="true">
+      <img class="deco err-scrap" src="/static/img/scrap04.webp" alt="" aria-hidden="true">
+
+      <div class="success-inner">
+        <p class="kicker">Лес временно закрыт</p>
+        <h1 class="glow">Скоро вернёмся</h1>
+        <p class="note">Сайт регистрации сейчас не отвечает — мы уже разбираемся.<br>
+          Страница сама обновится через 30 секунд.</p>
+        <a class="cta" href="/">Обновить</a>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

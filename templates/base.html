@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Долгожданный треш! Сумеречный лес — регистрация{% endblock %}</title>
+  <meta name="description" content="1 ноября, УЛК. Начало в 15:00, квиз в 18:00. Регистрация участников.">
+  <meta property="og:title" content="Долгожданный треш! Сумеречный лес">
+  <meta property="og:description" content="1 ноября, УЛК. Регистрация участников.">
+  <meta property="og:image" content="{{ url_for('static', filename='img/poster-og.jpg', _external=True) }}">
+  <meta name="theme-color" content="#1e1b1b">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="any">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon-32.png') }}" sizes="32x32">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  {% block body %}
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+  {% endblock %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>
