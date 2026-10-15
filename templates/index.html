@@ -6,12 +6,7 @@
 {% block body %}
 <div class="page">
 
-  <!-- телефон: афиша -->
-  <div class="poster-mobile">
-    <img src="{{ url_for('static', filename='img/poster.jpg') }}" alt="Долгожданный треш! Сумеречный лес. 1 ноября, УЛК" width="1100" height="1466">
-  </div>
-
-  <!-- компьютер: первый экран из ассетов -->
+  <!-- первый экран из ассетов (и на компьютере, и на телефоне) -->
   <header class="hero">
     {{ img('scream.webp', 'deco hero-scream') }}
     {{ img('myers.webp', 'deco hero-myers') }}
@@ -32,6 +27,18 @@
         {% endfor %}
       </ul>
       <a class="cta hero-cta" href="#reg">Зарегистрироваться</a>
+
+      <div class="orgs">
+        <span class="orgs-label">Организаторы</span>
+        <div class="orgs-list">
+          {% for o in organizers %}
+          <a class="org" href="{{ o.url }}" target="_blank" rel="noopener noreferrer" title="{{ o.name }} — ВКонтакте">
+            <img src="{{ url_for('static', filename=o.logo) }}" alt="{{ o.name }}">
+            <span class="org-vk">Страница в ВК</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
     </div>
   </header>
 
@@ -53,7 +60,7 @@
       {% if not is_open %}
         <div class="panel closed">
           <h3>Регистрация закрыта</h3>
-          <p>Следите за новостями в нашей группе ВКонтакте.</p>
+          <p>Следите за новостями в группе <a href="{{ organizers[0].url }}" target="_blank" rel="noopener noreferrer">ЛИС ВКонтакте</a>.</p>
         </div>
       {% else %}
       <form class="panel form" method="post" action="{{ url_for('register') }}#reg" novalidate data-retry-after="{{ retry_after }}">

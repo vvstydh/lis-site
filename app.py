@@ -60,6 +60,14 @@ EVENT = {
     "schedule": [("15:00", "Начало"), ("18:00", "Квиз")],
 }
 
+# организаторы: логотип в static/img, ссылка на группу ВК
+ORGANIZERS = [
+    {"name": "ЛИС — лаборатория инициатив студентов", "logo": "img/logo-lis.webp",
+     "url": "https://vk.ru/lis_tusur", "handle": "lis_tusur"},
+    {"name": "ППОС ТУСУР — 60 лет единства студентов", "logo": "img/logo-ppos.webp",
+     "url": "https://vk.ru/ppos_tusur", "handle": "ppos_tusur"},
+]
+
 COURSES = [
     "1 курс", "2 курс", "3 курс", "4 курс", "5 курс", "6 курс",
     "Магистратура, 1 курс", "Магистратура, 2 курс", "Аспирантура",
@@ -93,6 +101,17 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("lis_site")
 access_log = logging.getLogger("lis_site.access")
 access_log.propagate = False
+
+
+@app.url_defaults
+def static_version(endpoint, values):
+    """Добавляет ?v=<время изменения файла> к адресам статики: поменяли CSS/JS/картинку —
+    браузер сразу скачает новую версию, а не возьмёт старую из кэша."""
+    if endpoint == "static" and "filename" in values and "v" not in values:
+        try:
+            values["v"] = int(os.stat(os.path.join(app.static_folder, values["filename"])).st_mtime)
+        except OSError:
+            pass
 
 
 def setup_file_logs():
@@ -422,6 +441,7 @@ def render_index(errors=None, form=None, status=200, retry_after=0):
         event=EVENT,
         courses=COURSES,
         readiness=READINESS,
+        organizers=ORGANIZERS,
         is_open=registration_open(),
         errors=errors or {},
         form=form or {},
