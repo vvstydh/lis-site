@@ -13,6 +13,7 @@ services:
       # до него может достучаться лишь Caddy
       TRUSTED_PROXIES: 172.16.0.0/12,10.0.0.0/8,192.168.0.0/16
     volumes:
+      - /etc/localtime:/etc/localtime:ro
       - lis-data:/app/data          # база участников живёт здесь и переживает пересборку
       - ./logs:/app/logs            # access.log и app.log — прямо в папке проекта на сервере
     networks: [web]
