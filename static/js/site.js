@@ -1,3 +1,23 @@
+(() => {
+  const orb = document.querySelector('.hero-orb');
+  if (!orb) return;
+
+  function finishRetreat(event) {
+    if (event.target !== orb) return;
+    orb.classList.remove('is-retreating');
+    orb.removeAttribute('aria-disabled');
+  }
+
+  orb.addEventListener('click', () => {
+    if (orb.classList.contains('is-retreating')) return;
+    orb.setAttribute('aria-disabled', 'true');
+    orb.classList.add('is-retreating');
+  });
+  orb.addEventListener('animationend', finishRetreat);
+  orb.addEventListener('animationcancel', finishRetreat);
+  orb.disabled = false;
+})();
+
 // Форма регистрации: прокрутка к ошибке, защита от повторных кликов и обратный отсчёт паузы
 (() => {
   const form = document.querySelector('form.form');

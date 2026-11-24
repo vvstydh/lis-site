@@ -7,7 +7,9 @@
     <img src="{{ url_for('static', filename='img/battle/forest.webp') }}" alt="" fetchpriority="high">
   </picture>
   <header class="hero">
-    <img class="hero-orb" src="{{ url_for('static', filename='img/battle/orb.webp') }}" alt="" decoding="async">
+    <button class="hero-orb" type="button" aria-label="Коснуться лисьих лап" disabled>
+      <img src="{{ url_for('static', filename='img/battle/orb.webp') }}" alt="" decoding="async" draggable="false">
+    </button>
 
     <div class="hero-inner container">
       <nav class="orgs" aria-label="Организаторы ВКонтакте">
