@@ -160,7 +160,7 @@ img { display: block; max-width: 100%; }
   width: min-content;
   max-width: 100%;
   margin: .75rem auto 1.875rem;
-  font-size: clamp(1.875rem, 4.45vw, 4.5rem);
+  font-size: clamp(1.25rem, min(calc(5vw + .25rem), 10svh), 12rem);
   font-weight: 900;
   line-height: .99;
   letter-spacing: -.025em;
@@ -521,7 +521,7 @@ tr.came td { background: #182e49; }
 
   .hero-inner { min-height: max(100svh, 31rem); padding-bottom: clamp(3.25rem, 18svh, 10rem); }
   .hero-orb { width: clamp(12rem, 51vw, 20rem); left: -3%; top: clamp(6.5rem, 27svh, 15rem); }
-  .hero-title { font-size: clamp(1.25rem, 6.3vw, 2.7rem); margin-bottom: 1.25rem; }
+  .hero-title { margin-bottom: 1.25rem; }
   .status-page {
     background-image:
       linear-gradient(0deg, var(--bg), #0813228c 55%, #081322bb),
