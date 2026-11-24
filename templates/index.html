@@ -1,61 +1,37 @@
 {% extends "base.html" %}
 {% block body_class %}home{% endblock %}
-{% macro img(name, cls, alt="") -%}
-<img class="{{ cls }}" src="{{ url_for('static', filename='img/' ~ name) }}" alt="{{ alt }}" {% if not alt %}aria-hidden="true"{% endif %} decoding="async">
-{%- endmacro %}
 {% block body %}
-<div class="page">
-
-  <!-- первый экран из ассетов (и на компьютере, и на телефоне) -->
+<main class="landing">
+  <picture class="landing-scene">
+    <source media="(max-width: 700px)" srcset="{{ url_for('static', filename='img/battle/forest-mobile.webp') }}">
+    <img src="{{ url_for('static', filename='img/battle/forest.webp') }}" alt="" fetchpriority="high">
+  </picture>
   <header class="hero">
-    {{ img('scream.webp', 'deco hero-scream') }}
-    {{ img('myers.webp', 'deco hero-myers') }}
-    {{ img('scrap04.webp', 'deco hero-scrap-a') }}
-    {{ img('scrap02.webp', 'deco hero-scrap-b') }}
-    {{ img('scrap08.webp', 'deco hero-scrap-c') }}
+    <img class="hero-orb" src="{{ url_for('static', filename='img/battle/orb.webp') }}" alt="" decoding="async">
 
-    <div class="hero-inner">
-      <img class="date" src="{{ url_for('static', filename='img/date.webp') }}" alt="1 ноября | УЛК">
-      <h1 class="hero-title">
-        <span class="t1">Долгожданный</span>
-        <span class="t2">треш!</span>
-        <img class="t3" src="{{ url_for('static', filename='img/title-forest.webp') }}" alt="Сумеречный лес">
-      </h1>
-      <ul class="schedule">
-        {% for time, what in event.schedule %}
-        <li><b>{{ time }}</b><span>{{ what }}</span></li>
-        {% endfor %}
-      </ul>
-      <a class="cta hero-cta" href="#reg">Зарегистрироваться</a>
-
-      <div class="orgs">
-        <span class="orgs-label">Организаторы</span>
-        <div class="orgs-list">
-          {% for o in organizers %}
-          <a class="org" href="{{ o.url }}" target="_blank" rel="noopener noreferrer" title="{{ o.name }} — ВКонтакте">
-            <img src="{{ url_for('static', filename=o.logo) }}" alt="{{ o.name }}">
-            <span class="org-vk">Страница в ВК</span>
+    <div class="hero-inner container">
+      <nav class="orgs" aria-label="Организаторы ВКонтакте">
+        {% for organizer in organizers %}
+          <a href="{{ organizer.url }}" target="_blank" rel="noopener noreferrer">
+            <img src="{{ url_for('static', filename=organizer.logo) }}" alt="{{ organizer.name }}">
           </a>
+        {% endfor %}
+      </nav>
+      <div class="hero-content">
+        <time class="event-date" datetime="{{ event.date_iso }}">{{ event.date }}</time>
+        <h1 class="hero-title">
+          {% for line in event.title.split(' ', 1) %}
+          <span class="{{ 'hero-title-lead' if loop.first else 'hero-title-tail' }}">{{ line }}</span>
           {% endfor %}
-        </div>
+        </h1>
+        <a class="cta" href="#reg">{{ 'Зарегистрироваться' if is_open else 'Статус регистрации' }}</a>
       </div>
     </div>
   </header>
 
-  <section class="reg" id="reg">
-    {{ img('skull.webp', 'deco reg-skull') }}
-    {{ img('hand.webp', 'deco reg-hand') }}
-    {{ img('scrap01.webp', 'deco reg-scrap-a') }}
-    {{ img('scrap07.webp', 'deco reg-scrap-b') }}
-    {{ img('scrap06.webp', 'deco reg-scrap-c') }}
-    {{ img('scrap03.webp', 'deco reg-scrap-d') }}
-
-    <div class="reg-inner">
-      <header class="reg-head">
-        <p class="kicker">Трешовая</p>
-        <h2 class="glow">Регистрация</h2>
-        <p class="kicker kicker-end">участвуй</p>
-      </header>
+  <section class="reg" id="reg" aria-labelledby="registration-title">
+    <div class="reg-inner container">
+      <h2 id="registration-title">Регистрация</h2>
 
       {% if not is_open %}
         <div class="panel closed">
@@ -63,62 +39,10 @@
           <p>Следите за новостями в группе <a href="{{ organizers[0].url }}" target="_blank" rel="noopener noreferrer">ЛИС ВКонтакте</a>.</p>
         </div>
       {% else %}
-      <form class="panel form" method="post" action="{{ url_for('register') }}#reg" novalidate data-retry-after="{{ retry_after }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        {% if errors._form %}<p class="alert">{{ errors._form }}</p>{% endif %}
-
-        <div class="field {% if errors.full_name %}has-error{% endif %}">
-          <label for="full_name">ФИО</label>
-          <input id="full_name" name="full_name" value="{{ form.full_name }}" placeholder="Иванов Иван Иванович" autocomplete="name" required maxlength="120">
-          {% if errors.full_name %}<small>{{ errors.full_name }}</small>{% endif %}
-        </div>
-
-        <div class="field {% if errors.faculty %}has-error{% endif %}">
-          <label for="faculty">Факультет</label>
-          <input id="faculty" name="faculty" value="{{ form.faculty }}" required maxlength="120">
-          {% if errors.faculty %}<small>{{ errors.faculty }}</small>{% endif %}
-        </div>
-
-        <div class="field {% if errors.course %}has-error{% endif %}">
-          <label for="course">Курс обучения</label>
-          <select id="course" name="course" required>
-            <option value="" disabled {% if not form.course %}selected{% endif %}>Выберите курс</option>
-            {% for c in courses %}<option {% if form.course == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
-          </select>
-          {% if errors.course %}<small>{{ errors.course }}</small>{% endif %}
-        </div>
-
-        <div class="field {% if errors.vk_link %}has-error{% endif %}">
-          <label for="vk_link">Ссылка на страницу ВК</label>
-          <input id="vk_link" name="vk_link" value="{{ form.vk_link }}" placeholder="vk.ru/username" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" required maxlength="100">
-          {% if errors.vk_link %}<small>{{ errors.vk_link }}</small>{% endif %}
-        </div>
-
-        <div class="field {% if errors.source %}has-error{% endif %}">
-          <label for="source">Откуда узнал(а) о мероприятии?</label>
-          <input id="source" name="source" value="{{ form.source }}" placeholder="От друзей, из группы ВК…" required maxlength="200">
-          {% if errors.source %}<small>{{ errors.source }}</small>{% endif %}
-        </div>
-
-        <fieldset class="field {% if errors.readiness %}has-error{% endif %}">
-          <legend>Готов(а) к атмосферному вечеру?</legend>
-          {% for r in readiness %}
-          <label class="choice"><input type="radio" name="readiness" value="{{ r }}" {% if form.readiness == r %}checked{% endif %} required><span>{{ r }}</span></label>
-          {% endfor %}
-          {% if errors.readiness %}<small>{{ errors.readiness }}</small>{% endif %}
-        </fieldset>
-
-        <div class="hp" aria-hidden="true">
-          <label>Сайт <input name="website" tabindex="-1" autocomplete="off"></label>
-        </div>
-
-        <button type="submit" class="cta">Войти в сумеречный лес</button>
-      </form>
+        {% include "team_form.html" %}
       {% endif %}
     </div>
   </section>
-</div>
-
-
+</main>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/site.js') }}" defer></script>{% endblock %}

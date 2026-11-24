@@ -1,4 +1,4 @@
-"""Сайт регистрации на «Долгожданный Трэш: Сумеречный лес»."""
+"""Сайт регистрации на «Битву подразделений»."""
 
 import hashlib
 import hmac
@@ -14,6 +14,7 @@ import threading
 import time
 import unicodedata
 from collections import deque
+from contextlib import closing
 from datetime import datetime, timedelta
 from functools import wraps
 from urllib.parse import quote
@@ -53,11 +54,9 @@ AFTER_SUCCESS_COOLDOWN = 30  # сек после успешной заявки �
 MIN_FILL_SECONDS = 3         # быстрее человек форму не заполнит — это бот
 
 EVENT = {
-    "title": "Долгожданный треш!",
-    "subtitle": "Сумеречный лес",
-    "date": "1 ноября",
-    "place": "Корпус УЛК",
-    "schedule": [("15:00", "Начало"), ("18:00", "Квиз")],
+    "title": "Битва подразделений",
+    "date": "5 декабря",
+    "date_iso": "12-05",
 }
 
 # организаторы: логотип в static/img, ссылка на группу ВК
@@ -68,20 +67,16 @@ ORGANIZERS = [
      "url": "https://vk.ru/ppos_tusur", "handle": "ppos_tusur"},
 ]
 
-COURSES = [
-    "1 курс", "2 курс", "3 курс", "4 курс", "5 курс", "6 курс",
-    "Магистратура, 1 курс", "Магистратура, 2 курс", "Аспирантура",
-]
-READINESS = [
-    "Да, я готов(а) к сумеркам",
-    "Родился(-ась) готовым(ой)",
-    "Пока не знаю, но приду",
-]
+MAX_TEAM_SIZE = 6
+TEAM_SIZES = tuple(str(size) for size in range(1, MAX_TEAM_SIZE + 1))
+MEMBER_POSITIONS = range(2, MAX_TEAM_SIZE + 1)
+READINESS = ("Да, капитан!", "Конечно готовы!", "Сэр, да, сэр")
 
 # принимаем и старые ссылки vk.com, но сохраняем всё как vk.ru
 VK_RE = re.compile(r"^(?:https?://)?(?:www\.|m\.)?vk\.(?:ru|com)/([A-Za-z0-9_.]{2,64})/?$")
 
 app = Flask(__name__)
+app.jinja_env.globals["event"] = EVENT
 app.config.update(
     SECRET_KEY=SECRET_KEY or secrets.token_hex(32),
     # __Host- : cookie только для этого домена и только по HTTPS
@@ -139,6 +134,7 @@ def get_db():
     if "db" not in g:
         g.db = sqlite3.connect(DB_PATH, timeout=10, isolation_level=None)
         g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA foreign_keys=ON")
     return g.db
 
 
@@ -151,40 +147,56 @@ def close_db(_exc):
 
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    db = sqlite3.connect(DB_PATH)
-    db.executescript(
-        """
-        PRAGMA journal_mode=WAL;
-        CREATE TABLE IF NOT EXISTS registrations (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            full_name  TEXT NOT NULL,
-            faculty    TEXT NOT NULL,
-            course     TEXT NOT NULL,
-            vk_link    TEXT NOT NULL UNIQUE,
-            source     TEXT NOT NULL,
-            readiness  TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS settings (
-            key   TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        );
-        INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_open', '1');
-        """
-    )
-    # отметка «пришёл» — добавляем колонки и в уже существующую базу
-    cols = {r[1] for r in db.execute("PRAGMA table_info(registrations)")}
-    if "attended" not in cols:
-        db.execute("ALTER TABLE registrations ADD COLUMN attended INTEGER NOT NULL DEFAULT 0")
-    if "attended_at" not in cols:
-        db.execute("ALTER TABLE registrations ADD COLUMN attended_at TEXT")
-    db.commit()
-    db.close()
+    # Старые индивидуальные заявки остаются в таблице registrations.
+    with closing(sqlite3.connect(DB_PATH)) as db, db:
+        db.executescript(
+            f"""
+            PRAGMA journal_mode=WAL;
+            BEGIN;
+            CREATE TABLE IF NOT EXISTS teams (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                team_name       TEXT NOT NULL,
+                captain_name    TEXT NOT NULL,
+                captain_vk      TEXT NOT NULL UNIQUE,
+                captain_faculty TEXT NOT NULL,
+                captain_group   TEXT NOT NULL,
+                readiness       TEXT NOT NULL,
+                created_at      TEXT NOT NULL,
+                attended        INTEGER NOT NULL DEFAULT 0 CHECK (attended IN (0, 1)),
+                attended_at     TEXT
+            );
+            CREATE TABLE IF NOT EXISTS team_members (
+                team_id    INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                position   INTEGER NOT NULL CHECK (typeof(position) = 'integer' AND position BETWEEN 2 AND {MAX_TEAM_SIZE}),
+                full_name  TEXT NOT NULL,
+                group_name TEXT NOT NULL,
+                PRIMARY KEY (team_id, position)
+            );
+            CREATE TABLE IF NOT EXISTS settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_open', '1');
+            COMMIT;
+            """
+        )
 
 
 def registration_open():
     row = get_db().execute("SELECT value FROM settings WHERE key='registration_open'").fetchone()
     return row is None or row["value"] == "1"
+
+
+def read_teams():
+    db = get_db()
+    with db:
+        db.execute("BEGIN")
+        teams = {row["id"]: dict(row, members=[]) for row in db.execute("SELECT * FROM teams ORDER BY id")}
+        for member in db.execute("SELECT * FROM team_members ORDER BY team_id, position"):
+            teams[member["team_id"]]["members"].append(member)
+    for team in teams.values():
+        team["size"] = 1 + len(team["members"])
+    return list(teams.values())
 
 
 # ---------- защита ----------
@@ -394,11 +406,11 @@ def security_headers(resp):
 ERRORS = {  # код: (подзаголовок, текст)
     400: ("Что-то пошло не так", "Запрос не понят. Обновите страницу и попробуйте ещё раз."),
     403: ("Сюда нельзя", "У этого входа нет прав на такое действие."),
-    404: ("Ты заблудился в лесу", "Такой тропы здесь нет. Возвращайся к костру — на главную."),
-    405: ("Не той тропой", "Так к этой странице обращаться нельзя."),
+    404: ("Страница не найдена", "Проверьте адрес или вернитесь на главную."),
+    405: ("Действие недоступно", "Вернитесь на главную и попробуйте снова."),
     413: ("Слишком тяжело", "Запрос слишком большой."),
     429: ("Притормози", "Слишком много запросов. Подожди немного и попробуй снова."),
-    500: ("Лес шумит", "Что-то сломалось на нашей стороне. Попробуй через пару минут."),
+    500: ("Ошибка на сайте", "Попробуйте открыть страницу через пару минут."),
 }
 
 
@@ -438,8 +450,9 @@ def robots():
 def render_index(errors=None, form=None, status=200, retry_after=0):
     resp = app.make_response((render_template(
         "index.html",
-        event=EVENT,
-        courses=COURSES,
+        team_sizes=TEAM_SIZES,
+        member_positions=MEMBER_POSITIONS,
+        max_team_size=MAX_TEAM_SIZE,
         readiness=READINESS,
         organizers=ORGANIZERS,
         is_open=registration_open(),
@@ -466,7 +479,13 @@ def index():
 
 @app.post("/register")
 def register():
-    limits = {"full_name": 120, "faculty": 120, "course": 60, "vk_link": 100, "source": 200, "readiness": 60}
+    limits = {
+        "captain_name": 120, "captain_vk": 100, "captain_faculty": 120, "captain_group": 40,
+        "team_name": 160, "team_size": 1, "readiness": 60,
+    }
+    for position in MEMBER_POSITIONS:
+        limits[f"member_name_{position}"] = 120
+        limits[f"member_group_{position}"] = 40
     form = {k: clean(request.form.get(k), n) for k, n in limits.items()}
     ip = client_ip()
 
@@ -497,45 +516,80 @@ def register():
         return render_index({"_form": "Слишком быстро. Проверьте данные и отправьте ещё раз."}, form, 400, SUBMIT_COOLDOWN)
 
     errors = {}
-    if len(form["full_name"].split()) < 2 or len(form["full_name"]) > 120:
-        errors["full_name"] = "Укажите фамилию и имя (можно с отчеством)."
-    if not 2 <= len(form["faculty"]) <= 120:
-        errors["faculty"] = "Укажите факультет."
-    if form["course"] not in COURSES:
-        errors["course"] = "Выберите курс."
-    m = VK_RE.match(form["vk_link"])
-    if not m:
-        errors["vk_link"] = "Нужна ссылка вида vk.ru/username."
-    if not 2 <= len(form["source"]) <= 200:
-        errors["source"] = "Напишите, откуда узнали о мероприятии."
+    name_error = "Укажите фамилию и имя (можно с отчеством)."
+    group_error = "Укажите номер группы (до 40 символов)."
+    if len(form["captain_name"].split()) < 2 or len(form["captain_name"]) > 120:
+        errors["captain_name"] = name_error
+    vk = VK_RE.fullmatch(form["captain_vk"])
+    if not vk:
+        errors["captain_vk"] = "Нужна ссылка вида vk.ru/username."
+    if not 1 <= len(form["captain_faculty"]) <= 120:
+        errors["captain_faculty"] = "Укажите факультет капитана."
+    if not 1 <= len(form["captain_group"]) <= 40:
+        errors["captain_group"] = group_error
+    if not 1 <= len(form["team_name"]) <= 160:
+        errors["team_name"] = "Укажите название команды (до 160 символов)."
+    team_size = int(form["team_size"]) if form["team_size"] in TEAM_SIZES else None
+    members = []
+    if team_size is None:
+        errors["team_size"] = f"Выберите от 1 до {MAX_TEAM_SIZE} участников, включая капитана."
+    else:
+        for position in MEMBER_POSITIONS:
+            name_field, group_field = f"member_name_{position}", f"member_group_{position}"
+            name, group = form[name_field], form[group_field]
+            if position > team_size:
+                if name or group:
+                    errors["team_size"] = "Проверьте количество участников: указаны данные лишнего участника."
+                continue
+            if len(name.split()) < 2 or len(name) > 120:
+                errors[name_field] = name_error
+            if not 1 <= len(group) <= 40:
+                errors[group_field] = group_error
+            members.append((position, name, group))
     if form["readiness"] not in READINESS:
         errors["readiness"] = "Выберите вариант."
     if errors:
         return render_index(errors, form, 400, SUBMIT_COOLDOWN)
 
-    vk_link = f"https://vk.ru/{m.group(1).lower()}"
-
-    db = get_db()
-    if not registration_open():
+    vk_link = f"https://vk.ru/{vk.group(1).lower()}"
+    result = save_team(form, vk_link, members)
+    if result == "closed":
         return render_index({"_form": "Увы, регистрация уже закрыта."}, form, 409)
-    try:
-        db.execute(
-            "INSERT INTO registrations (full_name, faculty, course, vk_link, source, readiness, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (form["full_name"], form["faculty"], form["course"], vk_link, form["source"],
-             form["readiness"], datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+    if result == "duplicate":
+        return render_index(
+            {"captain_vk": "С этой страницей ВК уже зарегистрирована команда."}, form, 409, SUBMIT_COOLDOWN,
         )
-    except sqlite3.IntegrityError:
-        return render_index({"vk_link": "С этой страницей ВК уже зарегистрировались."}, form, 409, SUBMIT_COOLDOWN)
 
     device_cooldown.start(did, AFTER_SUCCESS_COOLDOWN)
     session["form_at"] = time.time()
     return redirect(url_for("success"))
 
 
+def save_team(form, vk_link, members):
+    db = get_db()
+    with db:
+        # Проверка открытия регистрации и запись всей команды выполняются под одной блокировкой.
+        db.execute("BEGIN IMMEDIATE")
+        if not registration_open():
+            return "closed"
+        cursor = db.execute(
+            "INSERT INTO teams (team_name, captain_name, captain_vk, captain_faculty, captain_group, readiness, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(captain_vk) DO NOTHING",
+            (form["team_name"], form["captain_name"], vk_link, form["captain_faculty"], form["captain_group"],
+             form["readiness"], datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        )
+        if cursor.rowcount == 0:
+            return "duplicate"
+        db.executemany(
+            "INSERT INTO team_members (team_id, position, full_name, group_name) VALUES (?, ?, ?, ?)",
+            ((cursor.lastrowid, *member) for member in members),
+        )
+    return "saved"
+
+
 @app.get("/success")
 def success():
-    return render_template("success.html", event=EVENT)
+    return render_template("success.html")
 
 
 # ---------- админка ----------
@@ -571,57 +625,66 @@ def admin_logout():
 @app.get("/admin")
 @login_required
 def admin():
-    rows = get_db().execute("SELECT * FROM registrations ORDER BY id").fetchall()
-    came = sum(1 for r in rows if r["attended"])
-    return render_template("admin.html", rows=rows, came=came, is_open=registration_open(), event=EVENT,
-                           can_edit=current_role() == "admin")
+    teams = read_teams()
+    return render_template(
+        "admin.html", teams=teams, came=sum(team["attended"] for team in teams),
+        participants=sum(team["size"] for team in teams), is_open=registration_open(),
+        can_edit=current_role() == "admin",
+    )
 
 
 @app.post("/admin/toggle")
 @admin_required
 def admin_toggle():
     check_csrf()
-    new = "0" if registration_open() else "1"
-    get_db().execute("UPDATE settings SET value=? WHERE key='registration_open'", (new,))
-    flash("Регистрация открыта." if new == "1" else "Регистрация закрыта.")
+    row = get_db().execute(
+        "UPDATE settings SET value=CASE value WHEN '1' THEN '0' ELSE '1' END"
+        " WHERE key='registration_open' RETURNING value"
+    ).fetchone()
+    flash("Регистрация открыта." if row["value"] == "1" else "Регистрация закрыта.")
     return redirect(url_for("admin"))
 
 
-@app.post("/admin/delete/<int:reg_id>")
+@app.post("/admin/teams/<int:team_id>/delete")
 @admin_required
-def admin_delete(reg_id):
+def admin_delete(team_id):
     check_csrf()
-    get_db().execute("DELETE FROM registrations WHERE id=?", (reg_id,))
-    flash("Запись удалена.")
+    deleted = get_db().execute("DELETE FROM teams WHERE id=?", (team_id,))
+    if not deleted.rowcount:
+        abort(404)
+    flash("Заявка команды удалена.")
     return redirect(url_for("admin"))
 
 
-@app.post("/admin/attend/<int:reg_id>")
+@app.post("/admin/teams/<int:team_id>/attend")
 @admin_required
-def admin_attend(reg_id):
+def admin_attend(team_id):
     check_csrf()
     attended = request.form.get("attended") == "1"
     db = get_db()
-    db.execute(
-        "UPDATE registrations SET attended=?, attended_at=? WHERE id=?",
-        (int(attended), datetime.now().strftime("%Y-%m-%d %H:%M:%S") if attended else None, reg_id),
-    )
-    came = db.execute("SELECT COUNT(*) FROM registrations WHERE attended=1").fetchone()[0]
+    row = db.execute(
+        "UPDATE teams SET attended=?,"
+        " attended_at=CASE WHEN ? THEN COALESCE(attended_at, ?) ELSE NULL END"
+        " WHERE id=? RETURNING attended_at",
+        (attended, attended, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), team_id),
+    ).fetchone()
+    if row is None:
+        abort(404)
     if request.headers.get("X-Requested-With") == "fetch":
-        return {"ok": True, "attended": attended, "came": came}
+        counts = db.execute("SELECT COUNT(*) AS total, COALESCE(SUM(attended), 0) AS came FROM teams").fetchone()
+        return {"ok": True, "attended": attended, "attended_at": row["attended_at"], **dict(counts)}
     return redirect(url_for("admin"))
 
 
 @app.get("/admin/export.xlsx")
 @admin_required
 def admin_export():
-    rows = get_db().execute("SELECT * FROM registrations ORDER BY id").fetchall()
-    data = build_xlsx(rows)
-    name = f"участники_{datetime.now():%Y-%m-%d}.xlsx"
+    data = build_xlsx(read_teams())
+    name = f"команды_{datetime.now():%Y-%m-%d}.xlsx"
     return Response(
         data,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename=participants.xlsx; filename*=UTF-8''{quote(name)}"},
+        headers={"Content-Disposition": f"attachment; filename=teams.xlsx; filename*=UTF-8''{quote(name)}"},
     )
 
 
@@ -632,88 +695,88 @@ def as_text(cell):
     return cell
 
 
-def build_xlsx(rows):
-    wb = Workbook()
-    orange = PatternFill("solid", fgColor="E94B26")
-    head_font = Font(bold=True, color="FFFFFF")
+def write_sheet(ws, columns, rows):
+    header_fill = PatternFill("solid", fgColor="25496E")
+    ws.append([label for label, _ in columns])
+    for number, (_, width) in enumerate(columns, 1):
+        cell = ws.cell(row=1, column=number)
+        cell.fill = header_fill
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.alignment = Alignment(vertical="center", wrap_text=True)
+        ws.column_dimensions[get_column_letter(number)].width = width
+    ws.row_dimensions[1].height = 30
+
     thin = Side(style="thin", color="D0D0D0")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     wrap = Alignment(vertical="top", wrap_text=True)
+    for values in rows:
+        ws.append(values)
+        for cell in ws[ws.max_row]:
+            cell.border, cell.alignment = border, wrap
+            as_text(cell)
+            if isinstance(cell.value, datetime):
+                cell.number_format = "DD.MM.YYYY HH:MM"
 
-    # --- лист со всеми участниками ---
-    ws = wb.active
-    ws.title = "Участники"
-    headers = ["№", "ФИО", "Факультет", "Курс", "Страница ВК", "Откуда узнал(а)",
-               "Готовность", "Пришёл", "Время отметки", "Дата регистрации"]
-    widths = [6, 34, 24, 22, 32, 34, 30, 10, 18, 18]
-    ws.append(headers)
-    for col, w in enumerate(widths, 1):
-        c = ws.cell(row=1, column=col)
-        c.fill, c.font, c.border = orange, head_font, border
-        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        ws.column_dimensions[get_column_letter(col)].width = w
-    ws.row_dimensions[1].height = 30
-
-    as_dt = lambda v: datetime.strptime(v, "%Y-%m-%d %H:%M:%S") if v else None
-    for i, r in enumerate(rows, 1):
-        ws.append([i, r["full_name"], r["faculty"], r["course"], r["vk_link"], r["source"],
-                   r["readiness"], "Да" if r["attended"] else "Нет",
-                   as_dt(r["attended_at"]), as_dt(r["created_at"])])
-        row = i + 1
-        for col in range(1, len(headers) + 1):
-            c = ws.cell(row=row, column=col)
-            c.border, c.alignment = border, wrap
-            if 2 <= col <= 7:
-                as_text(c)
-        link = ws.cell(row=row, column=5)
-        link.hyperlink, link.font = r["vk_link"], Font(color="0563C1", underline="single")
-        for col in (9, 10):
-            ws.cell(row=row, column=col).number_format = "DD.MM.YYYY HH:MM"
-        ws.cell(row=row, column=8).alignment = Alignment(horizontal="center", vertical="top")
-
-    last = len(rows) + 1
     ws.freeze_panes = "C2"
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{last}"
-    if rows:
-        green, grey = PatternFill("solid", fgColor="C6EFCE"), PatternFill("solid", fgColor="F2F2F2")
-        ws.conditional_formatting.add(f"H2:H{last}", CellIsRule(operator="equal", formula=['"Да"'], fill=green, font=Font(color="006100", bold=True)))
-        ws.conditional_formatting.add(f"H2:H{last}", CellIsRule(operator="equal", formula=['"Нет"'], fill=grey))
+    ws.auto_filter.ref = ws.dimensions
 
-    # --- сводка (формулы пересчитаются, если поменять «Пришёл» в таблице) ---
-    st = wb.create_sheet("Сводка")
-    st.column_dimensions["A"].width = 36
-    for col in "BCD":
-        st.column_dimensions[col].width = 16
-    rng = lambda col: f"'Участники'!${col}$2:${col}${max(last, 2)}"
-    st["A1"] = f"{EVENT['title']} {EVENT['subtitle']} — {EVENT['date']}, {EVENT['place']}"
-    st["A1"].font = Font(bold=True, size=14)
+
+def build_xlsx(teams):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Команды"
+
+    def as_datetime(value):
+        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S") if value else None
+
+    write_sheet(
+        ws,
+        [("№", 7), ("Команда", 34), ("Участников", 14), ("ФИО капитана", 35),
+         ("ВК капитана", 31), ("Факультет капитана", 25), ("Группа капитана", 18),
+         ("Вы готовы дети?", 22), ("Пришла", 12), ("Время отметки", 21), ("Дата заявки", 21)],
+        ([team["id"], team["team_name"], team["size"], team["captain_name"], team["captain_vk"],
+          team["captain_faculty"], team["captain_group"], team["readiness"], "Да" if team["attended"] else "Нет",
+          as_datetime(team["attended_at"]), as_datetime(team["created_at"])] for team in teams),
+    )
+    for number, team in enumerate(teams, 2):
+        link = ws.cell(row=number, column=5)
+        link.hyperlink = team["captain_vk"]
+        link.font = Font(color="0563C1", underline="single")
+    if teams:
+        green = PatternFill("solid", fgColor="C6EFCE")
+        ws.conditional_formatting.add(f"I2:I{ws.max_row}", CellIsRule(operator="equal", formula=['"Да"'], fill=green))
+
+    roster = []
+    for team in teams:
+        prefix = (team["id"], team["team_name"])
+        roster.append((*prefix, 1, "Капитан", team["captain_name"], team["captain_group"]))
+        roster.extend(
+            (*prefix, member["position"], "Участник", member["full_name"], member["group_name"])
+            for member in team["members"]
+        )
+    write_sheet(
+        wb.create_sheet("Состав команд"),
+        [("№ команды", 13), ("Команда", 34), ("№ в составе", 14), ("Роль", 14), ("ФИО", 38), ("Группа", 19)],
+        roster,
+    )
+
+    summary = wb.create_sheet("Сводка")
+    summary.column_dimensions["A"].width = 38
+    summary.column_dimensions["B"].width = 16
+    summary["A1"] = f"{EVENT['title']} — {EVENT['date']}"
+    summary["A1"].font = Font(bold=True, size=14)
+    last = max(ws.max_row, 2)
     totals = [
-        ("Зарегистрировались", f"=COUNTA({rng('B')})"),
-        ("Пришли", f'=COUNTIF({rng("H")},"Да")'),
-        ("Не пришли", "=B3-B4"),
-        ("Явка", "=IF(B3=0,0,B4/B3)"),
+        ("Зарегистрировалось команд", f"=COUNTA('Команды'!A2:A{last})"),
+        ("Участников, включая капитанов", f"=SUM('Команды'!C2:C{last})"),
+        ("Пришло команд", f"""=COUNTIF('Команды'!I2:I{last},"Да")"""),
+        ("Команд ещё нет", "=B3-B5"),
+        ("Явка команд", "=IF(B3=0,0,B5/B3)"),
     ]
-    for n, (label, formula) in enumerate(totals, 3):
-        st.cell(row=n, column=1, value=label).font = Font(bold=True)
-        st.cell(row=n, column=2, value=formula)
-    st["B6"].number_format = "0%"
-
-    row = 8
-    for title, col, key in (("По факультетам", "C", "faculty"), ("По курсам", "D", "course"),
-                            ("Готовность к вечеру", "G", "readiness")):
-        for n, h in enumerate((title, "Записались", "Пришли", "Явка"), 1):
-            c = st.cell(row=row, column=n, value=h)
-            c.fill, c.font, c.border = orange, head_font, border
-        values = sorted({r[key] for r in rows}, key=lambda v: (COURSES.index(v) if v in COURSES else 99, v))
-        for v in values:
-            row += 1
-            as_text(st.cell(row=row, column=1, value=v))
-            st.cell(row=row, column=2, value=f"=COUNTIF({rng(col)},A{row})")
-            st.cell(row=row, column=3, value=f'=COUNTIFS({rng(col)},A{row},{rng("H")},"Да")')
-            st.cell(row=row, column=4, value=f"=IF(B{row}=0,0,C{row}/B{row})").number_format = "0%"
-            for n in range(1, 5):
-                st.cell(row=row, column=n).border = border
-        row += 3
+    for number, (label, formula) in enumerate(totals, 3):
+        summary.cell(row=number, column=1, value=label).font = Font(bold=True)
+        summary.cell(row=number, column=2, value=formula)
+    summary["B7"].number_format = "0%"
 
     buf = io.BytesIO()
     wb.save(buf)

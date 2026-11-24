@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Участники — админка{% endblock %}
+{% block title %}Команды — админка{% endblock %}
 {% block body_class %}admin{% endblock %}
 {% block content %}
-<section class="card wide" id="admin" data-csrf="{{ csrf_token() }}" data-total="{{ rows|length }}" data-can-edit="{{ 1 if can_edit else 0 }}">
+<section class="card wide" id="admin" data-csrf="{{ csrf_token() }}" data-can-edit="{{ 1 if can_edit else 0 }}">
   <div class="toolbar">
-    <h2>Участники: {{ rows|length }}{% if not can_edit %} <span class="role">только просмотр</span>{% endif %}</h2>
+    <h2>Командные заявки{% if not can_edit %} <span class="role">только просмотр</span>{% endif %}</h2>
     <div class="actions">
       {% if can_edit %}
       <a class="btn" href="{{ url_for('admin_export') }}">Скачать Excel</a>
@@ -22,13 +22,15 @@
   {% for m in get_flashed_messages() %}<p class="notice">{{ m }}</p>{% endfor %}
 
   <div class="stats">
-    <div><b id="came">{{ came }}</b><span>пришли</span></div>
-    <div><b id="missing">{{ rows|length - came }}</b><span>ещё нет</span></div>
-    <div><b>{{ rows|length }}</b><span>записались</span></div>
+    <div><b>{{ teams|length }}</b><span>команд зарегистрировано</span></div>
+    <div><b>{{ participants }}</b><span>участников с капитанами</span></div>
+    <div><b id="came">{{ came }}</b><span>команд пришло</span></div>
+    <div><b id="missing">{{ teams|length - came }}</b><span>команд ещё нет</span></div>
   </div>
 
   <div class="filters">
-    <input class="search" id="q" placeholder="Поиск по ФИО, факультету, ВК…">
+    <input class="search" id="q" type="search" aria-label="Поиск по командам"
+           placeholder="Команда, ФИО, группа или ВК…">
     <div class="seg" role="group" aria-label="Фильтр">
       <button type="button" class="on" data-f="all">Все</button>
       <button type="button" data-f="came">Пришли</button>
@@ -37,32 +39,50 @@
   </div>
 
   <div class="table-wrap">
-  <table>
-    <thead><tr><th>Пришёл</th><th>№</th><th>ФИО</th><th>Факультет</th><th>Курс</th><th>ВК</th><th>Откуда</th><th>Готовность</th><th>Записался</th>{% if can_edit %}<th></th>{% endif %}</tr></thead>
+  <table class="team-table">
+    <thead><tr><th scope="col">Пришла</th><th scope="col">№</th><th scope="col">Команда</th>
+      <th scope="col">Капитан</th><th scope="col">Состав</th><th scope="col">Вы готовы дети?</th>
+      <th scope="col">Дата заявки</th>{% if can_edit %}<th scope="col">Действия</th>{% endif %}</tr></thead>
     <tbody>
-    {% for r in rows %}
-    <tr data-id="{{ r.id }}" class="{% if r.attended %}came{% endif %}">
+    {% for team in teams %}
+    <tr data-id="{{ team.id }}" class="{% if team.attended %}came{% endif %}">
       <td class="check-cell">
-        <label class="check" title="Отметить, что пришёл">
-          <input type="checkbox" class="attend" {% if r.attended %}checked{% endif %} {% if not can_edit %}disabled{% endif %}
-                 data-url="{{ url_for('admin_attend', reg_id=r.id) }}" aria-label="{{ r.full_name }} пришёл">
-          <span class="when">{{ r.attended_at[11:16] if r.attended_at else '' }}</span>
+        <label class="check" title="Отметить явку команды">
+          <input type="checkbox" class="attend" {% if team.attended %}checked{% endif %} {% if not can_edit %}disabled{% endif %}
+                 data-url="{{ url_for('admin_attend', team_id=team.id) }}" aria-label="Команда «{{ team.team_name }}» пришла">
+          <span class="when">{{ team.attended_at[11:16] if team.attended_at else '' }}</span>
         </label>
       </td>
-      <td>{{ loop.index }}</td><td class="name">{{ r.full_name }}</td><td>{{ r.faculty }}</td><td>{{ r.course }}</td>
-      <td><a href="{{ r.vk_link }}" target="_blank" rel="noopener">{{ r.vk_link|replace('https://', '') }}</a></td>
-      <td>{{ r.source }}</td><td>{{ r.readiness }}</td><td class="nowrap">{{ r.created_at[5:16] }}</td>
+      <td>{{ team.id }}</td>
+      <td class="team-name"><strong>{{ team.team_name }}</strong></td>
+      <td class="captain-cell">
+        <strong>{{ team.captain_name }}</strong>
+        <span class="muted">{{ team.captain_faculty }} · {{ team.captain_group }}</span>
+        <a href="{{ team.captain_vk }}" target="_blank" rel="noopener noreferrer">{{ team.captain_vk|replace('https://', '') }}</a>
+      </td>
+      <td class="roster-cell">
+        <details>
+          <summary>{{ team.size }} в составе</summary>
+          <ol>
+            <li>{{ team.captain_name }} <span class="muted">· {{ team.captain_group }} · капитан</span></li>
+            {% for member in team.members %}
+            <li>{{ member.full_name }} <span class="muted">· {{ member.group_name }}</span></li>
+            {% endfor %}
+          </ol>
+        </details>
+      </td>
+      <td>{{ team.readiness }}</td><td class="nowrap">{{ team.created_at[5:16] }}</td>
       {% if can_edit %}
       <td>
-        <form method="post" action="{{ url_for('admin_delete', reg_id=r.id) }}" data-confirm="Удалить: {{ r.full_name }}?">
+        <form method="post" action="{{ url_for('admin_delete', team_id=team.id) }}" data-confirm="Удалить заявку команды «{{ team.team_name }}»?">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <button class="icon" title="Удалить">✕</button>
+          <button class="icon" title="Удалить заявку" aria-label="Удалить заявку команды «{{ team.team_name }}»">✕</button>
         </form>
       </td>
       {% endif %}
     </tr>
     {% else %}
-    <tr><td colspan="{{ 10 if can_edit else 9 }}" class="muted center">Пока никто не зарегистрировался.</td></tr>
+    <tr><td colspan="{{ 8 if can_edit else 7 }}" class="muted center">Пока нет командных заявок.</td></tr>
     {% endfor %}
     </tbody>
   </table>

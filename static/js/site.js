@@ -1,10 +1,27 @@
 // Форма регистрации: прокрутка к ошибке, защита от повторных кликов и обратный отсчёт паузы
 (() => {
-  const firstError = document.querySelector('.has-error, .alert');
-  if (firstError) firstError.scrollIntoView({ block: 'center' });
-
   const form = document.querySelector('form.form');
   if (!form) return;
+  const size = form.querySelector('#team_size');
+  const roster = form.querySelector('#team-roster');
+  const members = Array.from(roster.querySelectorAll('[data-member-position]'));
+
+  function updateRoster() {
+    const count = Number(size.value);
+    roster.hidden = count <= 1;
+    members.forEach((member) => {
+      const active = Number(member.dataset.memberPosition) <= count;
+      member.hidden = !active;
+      member.disabled = !active;
+      member.querySelectorAll('input').forEach((input) => { input.required = active; });
+    });
+  }
+
+  size.addEventListener('change', updateRoster);
+  updateRoster();
+  const firstError = form.querySelector('.has-error, .alert');
+  if (firstError) firstError.scrollIntoView({ block: 'center' });
+
   const btn = form.querySelector('button[type=submit]');
   const label = btn.textContent;
   let wait = parseInt(form.dataset.retryAfter || '0', 10) || 0;
@@ -32,5 +49,8 @@
   });
 
   // вернулись кнопкой «назад» — страница из кеша, кнопку надо разблокировать
-  window.addEventListener('pageshow', (e) => { if (e.persisted) unlock(); });
+  window.addEventListener('pageshow', (e) => {
+    updateRoster();
+    if (e.persisted) unlock();
+  });
 })();

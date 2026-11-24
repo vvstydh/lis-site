@@ -1,0 +1,87 @@
+{% macro field_error(name) -%}
+  {% if errors[name] %}<small id="{{ name }}-error">{{ errors[name] }}</small>{% endif %}
+{%- endmacro %}
+
+{% macro error_attrs(name) -%}
+  {% if errors[name] %}aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}
+{%- endmacro %}
+
+{% macro text_field(name, label, maxlength, placeholder='', autocomplete='off', required=true, vk=false) -%}
+  <div class="field{% if errors[name] %} has-error{% endif %}">
+    <label for="{{ name }}">{{ label }}</label>
+    <input id="{{ name }}" name="{{ name }}" value="{{ form.get(name, '') }}" maxlength="{{ maxlength }}"
+           autocomplete="{{ autocomplete }}" {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+           {% if required %}required{% endif %}
+           {% if vk %}inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false"{% endif %}
+           {{ error_attrs(name) }}>
+    {{ field_error(name) }}
+  </div>
+{%- endmacro %}
+
+<form class="panel form team-form" method="post" action="{{ url_for('register') }}#reg" novalidate data-retry-after="{{ retry_after }}">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  {% if errors._form %}<p class="alert" role="alert">{{ errors._form }}</p>{% endif %}
+
+  <fieldset class="form-section">
+    <legend>Данные капитана</legend>
+    <div class="form-grid">
+      {{ text_field('captain_name', 'ФИО капитана', 120, 'Иванов Иван Иванович', 'name') }}
+      {{ text_field('captain_vk', 'Ссылка на ВК капитана', 100, 'vk.ru/username', vk=true) }}
+      {{ text_field('captain_faculty', 'Факультет капитана', 120) }}
+      {{ text_field('captain_group', 'Номер группы капитана', 40) }}
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>Данные команды</legend>
+    <div class="form-grid">
+      <div class="form-wide">
+        {{ text_field('team_name', 'Название подразделения, команды, коллектива или объединения', 160) }}
+      </div>
+      <div class="field form-wide{% if errors.team_size %} has-error{% endif %}">
+        <label for="team_size">Количество участников в команде</label>
+        <select id="team_size" name="team_size" required
+                aria-describedby="team_size-hint{% if errors.team_size %} team_size-error{% endif %}"
+                {% if errors.team_size %}aria-invalid="true"{% endif %}>
+          <option value="" disabled {% if form.team_size not in team_sizes %}selected{% endif %}>Выберите количество</option>
+          {% for size in team_sizes %}
+          <option value="{{ size }}" {% if form.team_size == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+        <p class="field-hint" id="team_size-hint">До {{ max_team_size }} человек, включая капитана.</p>
+        {{ field_error('team_size') }}
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section team-roster" id="team-roster">
+    <legend>Остальные участники</legend>
+    <noscript><p class="field-hint">Заполните столько строк, сколько у вас участников помимо капитана.</p></noscript>
+    {% for position in member_positions %}
+      <fieldset class="roster-member" data-member-position="{{ position }}">
+        <legend>Участник {{ position }}</legend>
+        <div class="form-grid member-grid">
+          {{ text_field('member_name_' ~ position, 'ФИО', 120, required=false) }}
+          {{ text_field('member_group_' ~ position, 'Номер группы', 40, required=false) }}
+        </div>
+      </fieldset>
+    {% endfor %}
+  </fieldset>
+
+  <fieldset class="form-section readiness{% if errors.readiness %} has-error{% endif %}" {{ error_attrs('readiness') }}>
+    <legend>Вы готовы дети?</legend>
+    {% for option in readiness %}
+      <label class="choice">
+        <input type="radio" name="readiness" value="{{ option }}" {% if form.readiness == option %}checked{% endif %} required>
+        <span>{{ option }}</span>
+      </label>
+    {% endfor %}
+    {{ field_error('readiness') }}
+  </fieldset>
+
+  <div class="hp" aria-hidden="true">
+    <label>Сайт <input name="website" tabindex="-1" autocomplete="off"></label>
+  </div>
+
+  <button type="submit" class="cta">Зарегистрировать команду</button>
+</form>

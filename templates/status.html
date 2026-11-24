@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block body %}
+<main class="status-page">
+  <div class="status-content">
+    {% block status %}{% endblock %}
+    <a class="cta" href="{{ url_for('index') }}">На главную</a>
+  </div>
+</main>
+{% endblock %}

@@ -1,15 +1,14 @@
-// Админка: поиск, фильтры, отметка «пришёл», подтверждение удаления
+// Админка: поиск команд, отметка явки и подтверждение удаления.
 (() => {
   const root = document.getElementById('admin');
   if (!root) return;
   const csrf = root.dataset.csrf;
-  const total = parseInt(root.dataset.total, 10) || 0;
   const canEdit = root.dataset.canEdit === '1';
   const q = document.getElementById('q');
   let mode = 'all';
 
   function applyFilter() {
-    const text = q.value.toLowerCase();
+    const text = q.value.trim().toLowerCase();
     document.querySelectorAll('tbody tr[data-id]').forEach((tr) => {
       const came = tr.classList.contains('came');
       const okMode = mode === 'all' || (mode === 'came') === came;
@@ -42,9 +41,9 @@
       if (res.redirected || !res.ok) throw new Error(res.status);
       const data = await res.json();
       tr.classList.toggle('came', data.attended);
-      when.textContent = data.attended ? new Date().toTimeString().slice(0, 5) : '';
+      when.textContent = data.attended_at ? data.attended_at.slice(11, 16) : '';
       document.getElementById('came').textContent = data.came;
-      document.getElementById('missing').textContent = total - data.came;
+      document.getElementById('missing').textContent = data.total - data.came;
       applyFilter();
     } catch (e) {
       box.checked = !box.checked;

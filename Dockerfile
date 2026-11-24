@@ -1,4 +1,4 @@
-# Сайт регистрации «Долгожданный треш! Сумеречный лес»
+# Сайт регистрации «Битва подразделений»
 FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
