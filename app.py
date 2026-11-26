@@ -1,4 +1,4 @@
-"""Сайт регистрации на «Битву подразделений»."""
+"""Сайт регистрации на «Битву активистов»."""
 
 import hashlib
 import hmac
@@ -54,9 +54,10 @@ AFTER_SUCCESS_COOLDOWN = 30  # сек после успешной заявки �
 MIN_FILL_SECONDS = 3         # быстрее человек форму не заполнит — это бот
 
 EVENT = {
-    "title": "Битва подразделений",
-    "date": "5 декабря",
-    "date_iso": "12-05",
+    "title": "Битва активистов",
+    "date": "6 декабря",
+    "date_iso": "12-06",
+    "place": "УЛК",
 }
 
 # организаторы: логотип в static/img, ссылка на группу ВК
@@ -763,7 +764,7 @@ def build_xlsx(teams):
     summary = wb.create_sheet("Сводка")
     summary.column_dimensions["A"].width = 38
     summary.column_dimensions["B"].width = 16
-    summary["A1"] = f"{EVENT['title']} — {EVENT['date']}"
+    summary["A1"] = f"{EVENT['title']} — {EVENT['date']}, {EVENT['place']}"
     summary["A1"].font = Font(bold=True, size=14)
     last = max(ws.max_row, 2)
     totals = [

@@ -20,7 +20,7 @@
         {% endfor %}
       </nav>
       <div class="hero-content">
-        <time class="event-date" datetime="{{ event.date_iso }}">{{ event.date }}</time>
+        <div class="event-date"><time datetime="{{ event.date_iso }}">{{ event.date }}</time> · {{ event.place }}</div>
         <h1 class="hero-title">
           {% for line in event.title.split(' ', 1) %}
           <span class="{{ 'hero-title-lead' if loop.first else 'hero-title-tail' }}">{{ line }}</span>

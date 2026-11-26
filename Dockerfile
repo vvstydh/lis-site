@@ -1,4 +1,4 @@
-# Сайт регистрации «Битва подразделений»
+# Сайт регистрации «Битва активистов»
 FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

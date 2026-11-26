@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ event.title }} — регистрация{% endblock %}</title>
-  <meta name="description" content="{{ event.title }}, {{ event.date }}. Регистрация участников.">
+  <meta name="description" content="{{ event.title }}, {{ event.date }}, {{ event.place }}. Регистрация команд.">
   <meta property="og:title" content="{{ event.title }}">
-  <meta property="og:description" content="{{ event.date }}. Регистрация участников.">
-  <meta property="og:image" content="{{ url_for('static', filename='img/battle/poster.jpg', _external=True) }}">
-  <meta property="og:image:alt" content="Афиша «{{ event.title }}», {{ event.date }}">
+  <meta property="og:description" content="{{ event.date }}, {{ event.place }}. Регистрация команд.">
+  <meta property="og:image" content="{{ url_for('static', filename='img/battle/share-forest.jpg', _external=True) }}">
+  <meta property="og:image:alt" content="Лес с афиши «{{ event.title }}»">
   <meta name="theme-color" content="#081322">
   <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="any">
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon-32.png') }}" sizes="32x32">
